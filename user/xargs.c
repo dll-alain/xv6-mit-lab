@@ -1,43 +1,149 @@
-// user/xargs.c
 #include "kernel/types.h"
-#include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/param.h"
 
-int main(int argc, char *argv[]) {
-    //从标准输入读取数据
-    char stdIn[512];
-    int size = read(0, stdIn, sizeof stdIn);
-    //将数据分行存储
-    int i = 0, j = 0;
-    int line = 0;
-    for (int k = 0; k < size; ++k) {
-        if (stdIn[k] == '\n') { // 根据换行符的个数统计数据的行数
-            ++line;
-        }
+#define MAXSZ 512
+// 有限状态自动机状态定义
+enum state {
+    S_WAIT,         // 等待参数输入，此状态为初始状态或当前字符为空格
+    S_ARG,          // 参数内
+    S_ARG_END,      // 参数结束
+    S_ARG_LINE_END, // 左侧有参数的换行，例如"arg\n"
+    S_LINE_END,     // 左侧为空格的换行，例如"arg  \n""
+    S_END           // 结束，EOF
+};
+
+// 字符类型定义
+enum char_type {
+    C_SPACE,
+    C_CHAR,
+    C_LINE_END
+};
+
+/**
+ * @brief 获取字符类型
+ *
+ * @param c 待判定的字符
+ * @return enum char_type 字符类型
+ */
+enum char_type get_char_type(char c)
+{
+    switch (c) {
+        case ' ':
+            return C_SPACE;
+        case '\n':
+            return C_LINE_END;
+        default:
+            return C_CHAR;
     }
-    char output[line][64]; // 根据提示中的MAXARG，命令参数长度最长为32个字节
-    for (int k = 0; k < size; ++k) {
-        output[i][j++] = stdIn[k];
-        if (stdIn[k] == '\n') {
-            output[i][j - 1] = 0; // 用0覆盖掉换行符。C语言没有字符串类型，char类型的数组中，'0'表示字符串的结束
-            ++i; // 继续保存下一行数据
-            j = 0;
-        }
+}
+
+/**
+ * @brief 状态转换
+ *
+ * @param cur 当前的状态
+ * @param ct 将要读取的字符
+ * @return enum state 转换后的状态
+ */
+enum state transform_state(enum state cur, enum char_type ct)
+{
+    switch (cur) {
+        case S_WAIT:
+            if (ct == C_SPACE)    return S_WAIT;
+            if (ct == C_LINE_END) return S_LINE_END;
+            if (ct == C_CHAR)     return S_ARG;
+            break;
+        case S_ARG:
+            if (ct == C_SPACE)    return S_ARG_END;
+            if (ct == C_LINE_END) return S_ARG_LINE_END;
+            if (ct == C_CHAR)     return S_ARG;
+            break;
+        case S_ARG_END:
+        case S_ARG_LINE_END:
+        case S_LINE_END:
+            if (ct == C_SPACE)    return S_WAIT;
+            if (ct == C_LINE_END) return S_LINE_END;
+            if (ct == C_CHAR)     return S_ARG;
+            break;
+        default:
+            break;
     }
-    //将数据分行拼接到argv[2]后，并运行
-    char *arguments[MAXARG];
-    for (j = 0; j < argc - 1; ++j) {
-        arguments[j] = argv[1 + j]; // 从argv[1]开始，保存原本的命令+命令参数
+    return S_END;
+}
+
+
+/**
+ * @brief 将参数列表后面的元素全部置为空
+ *        用于换行时，重新赋予参数
+ *
+ * @param x_argv 参数指针数组
+ * @param beg 要清空的起始下标
+ */
+void clearArgv(char *x_argv[MAXARG], int beg)
+{
+    for (int i = beg; i < MAXARG; ++i)
+        x_argv[i] = 0;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc - 1 >= MAXARG) {
+        fprintf(2, "xargs: too many arguments.\n");
+        exit(1);
     }
-    i = 0;
-    while (i < line) {
-        arguments[j] = output[i++]; // 将每一行数据都分别拼接在原命令参数后
-        if (fork() == 0) {
-            exec(argv[1], arguments);
-            exit(0);
+    char lines[MAXSZ];
+    char *p = lines;
+    char *x_argv[MAXARG] = {0}; // 参数指针数组，全部初始化为空指针
+
+    // 存储原有的参数
+    for (int i = 1; i < argc; ++i) {
+        x_argv[i - 1] = argv[i];
+    }
+    int arg_beg = 0;          // 参数起始下标
+    int arg_end = 0;          // 参数结束下标
+    int arg_cnt = argc - 1;   // 当前参数索引
+    enum state st = S_WAIT;   // 起始状态置为S_WAIT
+
+    while (st != S_END) {
+        // 读取为空则退出
+        if (read(0, p, sizeof(char)) != sizeof(char)) {
+            st = S_END;
+        } else {
+            st = transform_state(st, get_char_type(*p));
         }
-        wait(0);
+
+        if (++arg_end >= MAXSZ) {
+            fprintf(2, "xargs: arguments too long.\n");
+            exit(1);
+        }
+
+        switch (st) {
+            case S_WAIT:          // 这种情况下只需要让参数起始指针前移
+                ++arg_beg;
+                break;
+            case S_ARG_END:       // 参数结束，将参数地址存入x_argv数组中
+                x_argv[arg_cnt++] = &lines[arg_beg];
+                arg_beg = arg_end;
+                *p = '\0';          // 替换为字符串结束符
+                break;
+            case S_ARG_LINE_END:  // 将参数地址存入x_argv数组中同时执行指令
+                x_argv[arg_cnt++] = &lines[arg_beg];
+                // 不加break，因为后续处理同S_LINE_END
+            case S_LINE_END:      // 行结束，则为当前行执行指令
+                arg_beg = arg_end;
+                *p = '\0';
+                if (fork() == 0) {
+                    exec(argv[1], x_argv);
+                }
+                arg_cnt = argc - 1;
+                clearArgv(x_argv, arg_cnt);
+                wait(0);
+                break;
+            default:
+                break;
+        }
+
+        ++p;    // 下一个字符的存储位置后移
     }
     exit(0);
 }
