@@ -1,6 +1,3 @@
-//
-// Created by Alain Dong on 12/14/22.
-//
 // user/xargs.c
 #include "kernel/types.h"
 #include "kernel/stat.h"
