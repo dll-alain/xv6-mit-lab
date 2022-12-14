@@ -1,72 +1,57 @@
-//
-// Created by Alain Dong on 12/13/22.
-//
-
+// user/find.c
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fs.h"
 
-void find(char *path, char const *filename) {
-    char buf[512], *p;
-    int fid, fid1;
-    struct stat st, st1;
+void
+find(char *path, char *fileName) {
+    char buf[128], *p;
+    int fd, fd1;
     struct dirent de;
+    struct stat st, st1;
 
-    if ((fid = open(path, 0)) < 0) {
-        fprintf(2, "find: cannot open %s\n", path);
+    if ((fd = open(path, 0)) < 0) {
+        fprintf(2, "path error\n");
         return;
     }
 
-    if (fstat(fid, &st) < 0) {
-        fprintf(2, "find: cannot fstat %s\n", path);
-        close(fid);
-        return;
-    }
-
-//    if (st.type != T_DIR) {
-//        fprintf(2, "usage: find <DIRECTORY> <filename>\n");
-//        return;
-//    }
-
-    if (strlen(path) + 1 + DIRSIZ + 1 > sizeof buf) {
-        fprintf(2, "find: path too long\n");
+    if (fstat(fd, &st) < 0) {
+        fprintf(2, "path stat failed\n");
+        close(fd);
         return;
     }
 
     switch (st.type) {
         case T_FILE:
-            fprintf(2, "usage: find <DIRECTORY> <filename>\n");
-            return;
+            fprintf(2, "path error\n");
+            return; // 以上部分判断输入路径是否正确
         case T_DIR:
             strcpy(buf, path);
             p = buf + strlen(buf);
-            *p++ = '/'; //p指向最后一个'/'之后
-            while ((read(fid, &de, sizeof de)) == sizeof de) {
-                if (de.inum == 0) {
+            *p++ = '/'; // 保存当前正在搜索目录的完整路径，作为模板输出，新内容都是固定附加在p指针所指位置
+            while (read(fd, &de, sizeof(de)) == sizeof(de)) { // 遍历搜索目录
+                if (de.inum == 0)
+                    continue;
+                if (!strcmp(de.name, ".") || !strcmp(de.name, "..")) { // 若是'.'或'..'目录，则跳过
                     continue;
                 }
-                if (!strcmp(de.name, ".") || !strcmp(de.name, "..")) {
-                    // 若是'.'或'..'目录，则跳过
-                    continue;
-                }
-                // 在模板后添加属于自己的内容：自己的文件名
-                memmove(p, de.name, DIRSIZE);
-                if ((fid1 = open(buf, 0)) >= 0) {
-                    if ((fstat(fid1, &) >= 0) {
+                memmove(p, de.name, DIRSIZ); // 在模板后添加属于自己的内容：自己的文件名
+                if ((fd1 = open(buf, 0)) >= 0) {
+                    if (fstat(fd1, &st1) >= 0) {
                         switch (st1.type) {
                             case T_FILE:
-                                if (!strcmp(de.name, filename)) {
-                                    printf("%s\n", buf);
+                                if (!strcmp(de.name, fileName)) {
+                                    printf("%s\n", buf); // 若文件名与目标文件名一致，则输出其完整路径
                                 }
-                                close(fid1);
+                                close(fd1); // 注意及时关闭不用的文件描述符
                                 break;
                             case T_DIR:
-                                close(fid1);
-                                find(buf, filename);
+                                close(fd1);
+                                find(buf, fileName); // 若为目录，则递归查找子目录
                                 break;
                             case T_DEVICE:
-                                close(fid1);
+                                close(fd1);
                                 break;
                         }
                     }
@@ -74,12 +59,13 @@ void find(char *path, char const *filename) {
             }
             break;
     }
-    close(fid);
+    close(fd);
 }
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[]) {
     if (argc != 3) {
-        fprintf(2, "Usage: find path filename\n");
+        fprintf(2, "Usage:find path fileName\n");
         exit(0);
     }
     find(argv[1], argv[2]);
