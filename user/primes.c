@@ -30,7 +30,7 @@ const uint INT_LEN = sizeof(int);
  * @param rpipe 右邻居的管道符
  * @param first 左邻居的第一个数据
  */
- void transmit_data(int lpipe[2], int rpipe[2], int *first) {
+ void transmit_data(int lpipe[2], int rpipe[2], int first) {
      //receive data from left pipe
      int data;
      while (read(lpipe[RD], &data, INT_LEN) == INT_LEN) {
@@ -69,7 +69,7 @@ int main(int argc, char const *argv[]) {
     int p[2];
     pipe(p);
     for (int i = 2; i <= 25; i++) {
-        write(p, &i, INT_LEN);
+        write(p[1], &i, INT_LEN);
     }
     if (fork() == 0) {
         primes(p);
