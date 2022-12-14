@@ -8,7 +8,7 @@
 #include "kernel/fs.h"
 
 void find(char *path, char const *filename) {
-    char *buf[512], *p;
+    char buf[512], *p;
     int fid, fid1;
     struct stat st, st1;
     struct dirent de;
@@ -29,7 +29,7 @@ void find(char *path, char const *filename) {
 //        return;
 //    }
 
-    if (strlen(path) + 1 + DIRSIZE + 1 > sizeof buf) {
+    if (strlen(path) + 1 + DIRSIZ + 1 > sizeof buf) {
         fprintf(2, "find: path too long\n");
         return;
     }
@@ -51,9 +51,9 @@ void find(char *path, char const *filename) {
                     continue;
                 }
                 // 在模板后添加属于自己的内容：自己的文件名
-                memove(p, de.name, DIRSIZE);
+                memmove(p, de.name, DIRSIZE);
                 if ((fid1 = open(buf, 0)) >= 0) {
-                    if (fstat(fid1, &) >= 0) {
+                    if ((fstat(fid1, &) >= 0) {
                         switch (st1.type) {
                             case T_FILE:
                                 if (!strcmp(de.name, filename)) {
@@ -79,7 +79,7 @@ void find(char *path, char const *filename) {
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        fprintf(2, 'Usage: find path filename\n');
+        fprintf(2, "Usage: find path filename\n");
         exit(0);
     }
     find(argv[1], argv[2]);
