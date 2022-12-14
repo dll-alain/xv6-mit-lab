@@ -18,7 +18,7 @@ const uint INT_LEN = sizeof(int);
  */
  int lpip_first_data(int lpipe[2], int *first) {
      if (read(lpipe[RD], first, INT_LEN)) {
-         printf("primes %d\n", first);
+         printf("primes %d\n", *first);
          return 0;
      }
      return -1;
@@ -49,7 +49,7 @@ const uint INT_LEN = sizeof(int);
 void primes(int lpipe[2]) {
     close(lpipe[WR]);
     int first;
-    if (lpip_first_data(lpipe, first) == 0) {
+    if (lpip_first_data(lpipe, &first) == 0) {
         int rpipe[2];
         pipe(rpipe);
         transmit_data(lpipe, rpipe, first);
