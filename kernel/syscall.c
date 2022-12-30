@@ -58,7 +58,7 @@ static char
         "fork", "exit", "wait", "pipe", "read", "kill",
         "exec", "fstat", "chdir", "dup", "getpid", "sbrk",
         "sleep","uptime", "open", "write", "mknod",
-        "unlink", "link", "mkdir", "close", "sysinfo", "trace"
+        "unlink", "link", "mkdir", "close", "sysinfo", "trace", "sysinfo"
 };
 
 // Fetch the nth 32-bit system call argument.
