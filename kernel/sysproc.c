@@ -112,14 +112,20 @@ uint64 acquire_nproc();
 uint64
 sys_sysinfo(void)
 {
+    uint64 info_addr;
     struct sysinfo info;
-    uint64 addr;
+
+    if (argaddr(0, &info_addr) < 0) {
+        return -1;
+    }
+
+    // 计算freemem和nproc
     info.freemem = acquire_freemem();
     info.nproc = acquire_nproc();
-    struct proc *p = myproc();
-    if (argaddr(0, &addr) < 0)
+    // 将结构体由内核态拷贝至用户态
+    if (copyout(myproc()->pagetable, info_addr,
+                (char *) &info, sizeof(info)) < 0) {
         return -1;
-    if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0)
-        return -1;
+    }
     return 0;
 }

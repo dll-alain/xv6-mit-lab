@@ -79,15 +79,11 @@ kalloc(void) {
 
 uint64
 acquire_freemem() {
+    uint64 n;
     struct run *r;
-    uint64 cnt = 0;
-    acquire(&kmem.lock);
-    r = kmem.freelist;
-    while (r) {
-        r = r->next;
-        cnt++;
+    // 遍历kmem.freelist链表
+    for (n = 0, r = kmem.freelist; r; r = r->next) {
+        ++n;
     }
-    release(&kmem.lock);
-
-    return cnt * PGSIZE;
+    return n * PGSIZE;
 }

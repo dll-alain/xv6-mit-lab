@@ -641,14 +641,13 @@ procdump(void) {
 
 uint64
 acquire_nproc() {
+    uint64 n;
     struct proc *p;
-    uint64 cnt = 0;
-    for (p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
-        if (p->state != UNUSED) {
-            cnt++;
+    // 遍历proc数组, 找非UNUSED状态进程
+    for(n=0, p = proc; p < &proc[NPROC]; ++p) {
+        if(p->state != UNUSED) {
+            ++n;
         }
-        release(&p->lock);
     }
-    return cnt;
+    return n;
 }
