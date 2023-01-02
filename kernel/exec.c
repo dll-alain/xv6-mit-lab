@@ -14,7 +14,7 @@ exec(char *path, char **argv)
 {
   char *s, *last;
   int i, off;
-  uint64 argc, sz = 0, sp, ustack[MAXARG], stackbase;
+  uint64 argc, sz = 0, sp, ustack[MAXARG+1], stackbase;
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
@@ -51,13 +51,13 @@ exec(char *path, char **argv)
     uint64 sz1;
     if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
-
-    if(sz1 >= PLIC) { // 添加检测，防止程序大小超过 PLIC
-          goto bad;
+    // limit added by exp3, program should not go over PLIC or else
+    // kernel page-table's mapping of the program would not fit.
+    if(sz1 >= PLIC) {
+      goto bad;
     }
-
     sz = sz1;
-    if((ph.vaddr % PGSIZE) != 0)
+    if(ph.vaddr % PGSIZE != 0)
       goto bad;
     if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
@@ -112,11 +112,14 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
-
-  // 清除内核页表中对程序内存的旧映射，然后重新建立映射。
+  // synchronize kernel page-table's mapping of user memory
   uvmunmap(p->kernelpgtbl, 0, PGROUNDUP(oldsz)/PGSIZE, 0);
   kvmcopymappings(pagetable, p->kernelpgtbl, 0, sz);
-    
+  
+
+  // TODO: unmap old program mapping [0,oldsz] in kernel page table    
+  // TODO: map [0,sz] in the new user page-table to kernel page-table
+
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
@@ -125,8 +128,7 @@ exec(char *path, char **argv)
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
-  vmprintf(p->pagetable);
-
+  vmprint(p->pagetable);
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
@@ -148,6 +150,9 @@ loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz
 {
   uint i, n;
   uint64 pa;
+
+  if((va % PGSIZE) != 0)
+    panic("loadseg: va must be page aligned");
 
   for(i = 0; i < sz; i += PGSIZE){
     pa = walkaddr(pagetable, va + i);
