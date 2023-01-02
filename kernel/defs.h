@@ -170,6 +170,11 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+int             pgtblprint(pagetable_t pagetable, int depth);
+int             vmprintf(pagetable_t pagetable);
+void            kvm_free_kernelpgtbl(pagetable_t pagetable);
+int             kvmcopymappings(pagetable_t src, pagetable_t dst, uint64 start, uint64 sz);
+uint64          kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
 
 // plic.c
 void            plicinit(void);
