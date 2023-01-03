@@ -155,3 +155,42 @@ slow_handler()
   sigalarm(0, 0);
   sigreturn();
 }
+
+uint64
+sys_sigreturn(void)
+{
+    struct proc *p = myproc();
+    *p->trapframe = *p->pretrapframe;
+    //memmove(p->trapframe, p->pretrapframe, sizeof(struct trapframe));
+    p->ticks = 0;
+    return 0;
+}
+
+uint64
+sys_sigalarm(void)
+{
+    int interval;
+    uint64 handler;
+    struct proc * p;
+    if(argint(0, &interval) < 0 || argaddr(1, &handler) < 0 || interval < 0) {
+        return -1;
+    }
+    p = myproc();
+    p->interval = interval;
+    p->handler = handler;
+    p->ticks = 0;
+
+    if(which_dev == 2) {
+        if(p->interval) {
+            if(p->ticks == p->interval) {
+                //p->ticks = 0;  // 待会儿需要删掉这一行
+                *p->pretrapframe = *p->trapframe;
+                p->trapframe->epc = p->handler;
+            }
+            p->ticks++;
+        }
+        yield();
+    }
+
+    return 0;
+}
