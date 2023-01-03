@@ -173,8 +173,9 @@ freeproc(struct proc *p)
   p->interval = 0;
   p->handler = 0;
   p->ticks = 0;
-  if(p->pretrapframe)
-      kfree((void*)p->pretrapframe);
+  if(p->pretrapframe) {
+      kfree((void *) p->pretrapframe);
+  }
 }
 
 // Create a user page table for a given process,
